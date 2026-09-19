@@ -38,7 +38,7 @@ final class TimerStore {
     let seconds = Int(ceil(state.secondsLeft(at: now)))
     return String(format: "%02d:%02d", seconds / 60, seconds % 60)
   }
-  var progress: Double { min(1, max(0, 1 - state.secondsLeft(at: now) / max(1, state.total))) }
+  var progress: Double { state.progress(at: now) }
   var actionTitle: String {
     state.isRunning
       ? "Pause" : state.hasStarted ? "Resume" : "Start \(state.phase.title.lowercased())"
@@ -71,7 +71,7 @@ final class TimerStore {
   }
   func skip() {
     tick()
-    state.skip(preferences: preferences)
+    state.skip(at: now, preferences: preferences)
     message = nil
     changed()
   }

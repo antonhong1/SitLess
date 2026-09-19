@@ -23,7 +23,7 @@ struct TimerStateTests {
         timer.finishIfDue(at: start.addingTimeInterval(1500), preferences: preferences) == .focus)
       expect(timer.phase == (index == 4 ? .longBreak : .shortBreak))
       expect(timer.isRunning)
-      timer.skip(preferences: preferences)
+      timer.skip(at: start.addingTimeInterval(1500), preferences: preferences)
     }
     expect(timer.completedInCycle == 0)
     expect(timer.completedDates.count == 4)
@@ -40,12 +40,30 @@ struct TimerStateTests {
     expect(timer.isRunning)
   }
 
-  func skipDoesNotCountAsCompletion() {
+  func skippedFocusCountsAsCompletion() {
     var timer = TimerState()
     timer.start(at: start)
-    timer.skip(preferences: preferences)
+    let skippedAt = start.addingTimeInterval(60)
+    timer.skip(at: skippedAt, preferences: preferences)
     expect(timer.phase == .shortBreak)
-    expect(timer.completedDates.isEmpty)
+    expect(timer.completedDates.count == 1)
+    expect(timer.completedDates.first == skippedAt)
+    expect(timer.completedInCycle == 1)
+  }
+
+  func fourSkippedFocusSessionsGiveLongBreak() {
+    var timer = TimerState()
+    for index in 1...4 {
+      let skippedAt = start.addingTimeInterval(Double(index))
+      timer.skip(at: skippedAt, preferences: preferences)
+      expect(timer.phase == (index == 4 ? .longBreak : .shortBreak))
+      expect(!timer.isRunning)
+      if index < 4 {
+        timer.skip(at: skippedAt, preferences: preferences)
+        expect(timer.phase == .focus)
+      }
+    }
+    expect(timer.completedDates.count == 4)
     expect(timer.completedInCycle == 0)
   }
 
@@ -98,7 +116,7 @@ struct TimerStateTests {
     for start in starts {
       timer.start(at: start)
       timer.finishIfDue(at: start.addingTimeInterval(1500), preferences: preferences)
-      timer.skip(preferences: preferences)
+      timer.skip(at: start.addingTimeInterval(1500), preferences: preferences)
     }
     expect(timer.completedToday(at: now, calendar: calendar) == 1)
     expect(timer.completedThisWeek(at: now, calendar: calendar) == 2)
@@ -123,7 +141,7 @@ struct TimerStateTests {
         from: DateComponents(year: year, month: month, day: day, hour: 9))!
       timer.start(at: start)
       timer.finishIfDue(at: start.addingTimeInterval(1500), preferences: preferences)
-      timer.skip(preferences: preferences)
+      timer.skip(at: start.addingTimeInterval(1500), preferences: preferences)
     }
 
     expect(timer.completedLifetime == 6)
@@ -203,6 +221,20 @@ struct TimerStateTests {
     expect(timer.isRunning)
     expect(timer.secondsLeft(at: breakDeadline) == 1500)
   }
+
+  func progressRingStartsFullAndCountsDownAfterSkip() {
+    var timer = TimerState()
+    timer.start(at: start)
+    timer.skip(at: start, preferences: preferences)
+
+    expect(timer.phase == .shortBreak)
+    expect(timer.total == 300)
+    expect(timer.remaining == 300)
+    expect(timer.progress(at: start) == 1)
+
+    timer.start(at: start)
+    expect(abs(timer.progress(at: start.addingTimeInterval(60)) - 0.8) < 0.0001)
+  }
 }
 
 func expect(_ condition: @autoclosure () -> Bool, file: StaticString = #file, line: UInt = #line) {
@@ -218,8 +250,10 @@ func expect(_ condition: @autoclosure () -> Bool, file: StaticString = #file, li
     print("PASS fourCompletedFocusSessionsGiveLongBreak")
     tests.wakingAfterHoursCompletesOnlyOneInterval()
     print("PASS wakingAfterHoursCompletesOnlyOneInterval")
-    tests.skipDoesNotCountAsCompletion()
-    print("PASS skipDoesNotCountAsCompletion")
+    tests.skippedFocusCountsAsCompletion()
+    print("PASS skippedFocusCountsAsCompletion")
+    tests.fourSkippedFocusSessionsGiveLongBreak()
+    print("PASS fourSkippedFocusSessionsGiveLongBreak")
     tests.resetUsesNewDurationWithoutAwardingCompletion()
     print("PASS resetUsesNewDurationWithoutAwardingCompletion")
     try tests.persistenceRetainsDeadlineAndPausedState()
@@ -242,6 +276,8 @@ func expect(_ condition: @autoclosure () -> Bool, file: StaticString = #file, li
     print("PASS completedBreakReturnsToFocusWithoutCredit")
     tests.completedIntervalsContinueIntoTheNextPhase()
     print("PASS completedIntervalsContinueIntoTheNextPhase")
-    print("15 timer regression checks passed")
+    tests.progressRingStartsFullAndCountsDownAfterSkip()
+    print("PASS progressRingStartsFullAndCountsDownAfterSkip")
+    print("17 timer regression checks passed")
   }
 }

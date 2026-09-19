@@ -47,16 +47,17 @@ struct PanelView: View {
           Button {
             page = .stats
           } label: {
-            HStack(spacing: 5) {
-              Label(
-                "\(store.state.completedToday(at: store.now)) completed today",
-                systemImage: "checkmark.circle"
-              )
+            HStack(spacing: 8) {
+              compactStat("Today", value: store.state.completedToday(at: store.now))
+              Divider().frame(height: 26)
+              compactStat("This week", value: store.state.completedThisWeek(at: store.now))
+              Divider().frame(height: 26)
+              compactStat(
+                "Streak", value: store.state.currentStreak(at: store.now), suffix: "d")
               Image(systemName: "chevron.right")
                 .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(.secondary)
             }
-            .font(.system(size: 11))
-            .foregroundStyle(.secondary)
           }
           .buttonStyle(.borderless)
           .accessibilityLabel("Open focus stats")
@@ -69,7 +70,7 @@ struct PanelView: View {
         .buttonStyle(.borderless).font(.system(size: 11))
         .keyboardShortcut("q")
       }
-      .padding(.horizontal, 16).frame(height: 40)
+      .padding(.horizontal, 16).frame(height: page == .timer ? 52 : 40)
     }
     .frame(width: 340)
     .background {
@@ -251,6 +252,22 @@ struct PanelView: View {
         .minimumScaleFactor(0.8)
     }
     .frame(maxWidth: .infinity)
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("\(label), \(value)\(suffix)")
+  }
+
+  private func compactStat(_ label: String, value: Int, suffix: String = "") -> some View {
+    VStack(spacing: 1) {
+      Text("\(value)\(suffix)")
+        .font(.system(size: 13, weight: .semibold, design: .rounded))
+        .monospacedDigit()
+        .foregroundStyle(.primary)
+      Text(label)
+        .font(.system(size: 8))
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+    }
+    .frame(minWidth: 40)
     .accessibilityElement(children: .combine)
     .accessibilityLabel("\(label), \(value)\(suffix)")
   }
