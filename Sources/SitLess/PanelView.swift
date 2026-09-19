@@ -11,7 +11,7 @@ struct PanelView: View {
     VStack(spacing: 0) {
       HStack {
         Image(systemName: "timer").foregroundStyle(accent)
-        Text(settings ? "Settings" : "FocusBar").font(.system(size: 14, weight: .semibold))
+        Text(settings ? "Settings" : "SitLess").font(.system(size: 14, weight: .semibold))
         Spacer()
         Button {
           settings.toggle()
@@ -44,7 +44,12 @@ struct PanelView: View {
       .padding(.horizontal, 16).frame(height: 40)
     }
     .frame(width: 340)
-    .background(.regularMaterial)
+    .background {
+      ZStack {
+        Rectangle().fill(.regularMaterial)
+        Color.white.opacity(0.58)
+      }
+    }
     .tint(accent)
     .alert(
       "Replace this session?",
@@ -59,7 +64,7 @@ struct PanelView: View {
       Text("The current countdown will be reset. Completed sessions are kept.")
     }
     .alert(
-      "FocusBar",
+      "SitLess",
       isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })
     ) {
       Button("OK") { store.error = nil }
@@ -147,26 +152,18 @@ struct PanelView: View {
       }
       Divider()
       Toggle("Play sound when a session ends", isOn: $store.preferences.sound)
-      VStack(alignment: .leading, spacing: 5) {
-        Toggle(
-          "Show notifications",
-          isOn: Binding(
-            get: { store.preferences.notifications }, set: { store.setNotifications($0) }))
-        Text(store.notificationStatus).font(.system(size: 11)).foregroundStyle(.secondary)
-      }
       Toggle(
         "Launch at login", isOn: Binding(get: { store.loginEnabled }, set: { store.setLogin($0) }))
       Divider()
       VStack(alignment: .leading, spacing: 6) {
         Text("Space to start or pause · ⌘R to reset")
         Text("Shortcuts work while this panel is open.")
-        Text("FocusBar 1.0 · Built on your Mac")
+        Text("SitLess 1.0 · Built on your Mac")
       }.font(.system(size: 11)).foregroundStyle(.secondary)
     }
     .toggleStyle(.switch).font(.system(size: 12))
     .padding(20)
     .onChange(of: store.preferences) { _, _ in store.updatePreferences() }
-    .onAppear { store.refreshNotificationStatus() }
   }
 
   private func durationRow(_ title: String, value: Binding<Int>, range: ClosedRange<Int>)

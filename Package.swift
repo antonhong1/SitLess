@@ -2,13 +2,13 @@
 import PackageDescription
 
 let package = Package(
-  name: "FocusBar",
+  name: "SitLess",
   platforms: [.macOS(.v14)],
-  products: [.executable(name: "FocusBar", targets: ["FocusBar"])],
+  products: [.executable(name: "SitLess", targets: ["SitLess"])],
   targets: [
     .target(name: "FocusCore"),
     .executableTarget(
-      name: "FocusBar", dependencies: ["FocusCore"],
+      name: "SitLess", dependencies: ["FocusCore"],
       swiftSettings: [
         .defaultIsolation(MainActor.self),
         .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
