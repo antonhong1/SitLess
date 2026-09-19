@@ -12,6 +12,7 @@ final class TimerStore {
   var error: String?
   var loginEnabled = SMAppService.mainApp.status == .enabled
   @ObservationIgnored private var ticker: Timer?
+  @ObservationIgnored private let focusModeController = FocusModeController()
   @ObservationIgnored var onChange: (() -> Void)?
   private let defaults = UserDefaults.standard
 
@@ -19,7 +20,9 @@ final class TimerStore {
     let loaded = Self.load(Preferences.self, key: "preferences") ?? Preferences()
     preferences = loaded
     state = Self.load(TimerState.self, key: "timer") ?? TimerState(preferences: loaded)
+    focusModeController.onError = { [weak self] in self?.error = $0 }
     tick()
+    reconcileFocusMode()
     ticker = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
       MainActor.assumeIsolated { self?.tick() }
     }
@@ -46,8 +49,9 @@ final class TimerStore {
     if let finished = state.finishIfDue(at: now, preferences: preferences) {
       message =
         finished == .focus
-        ? "Nice work. Your break is ready." : "Break complete. Ready when you are."
+        ? "Nice work. Time for a break." : "Break complete. Back to focus."
       if preferences.sound { NSSound(named: "Glass")?.play() }
+      reconcileFocusMode()
       persist()
     }
     onChange?()
@@ -82,8 +86,18 @@ final class TimerStore {
   }
   private func changed() {
     now = Date()
+    reconcileFocusMode()
     persist()
     onChange?()
+  }
+
+  private func reconcileFocusMode() {
+    focusModeController.reconcile(
+      shouldEnable: preferences.doNotDisturbDuringFocus && state.isFocusSessionActive)
+  }
+
+  func prepareForTermination() async {
+    await focusModeController.prepareForTermination()
   }
 
   func persist() {

@@ -22,7 +22,7 @@ struct TimerStateTests {
       expect(
         timer.finishIfDue(at: start.addingTimeInterval(1500), preferences: preferences) == .focus)
       expect(timer.phase == (index == 4 ? .longBreak : .shortBreak))
-      expect(!timer.isRunning)
+      expect(timer.isRunning)
       timer.skip(preferences: preferences)
     }
     expect(timer.completedInCycle == 0)
@@ -37,7 +37,7 @@ struct TimerStateTests {
     expect(timer.finishIfDue(at: wake, preferences: preferences) == nil)
     expect(timer.completedDates.count == 1)
     expect(timer.remaining == 300)
-    expect(!timer.isRunning)
+    expect(timer.isRunning)
   }
 
   func skipDoesNotCountAsCompletion() {
@@ -83,12 +83,87 @@ struct TimerStateTests {
     expect(timer.completedToday(at: day.addingTimeInterval(86400), calendar: calendar) == 0)
   }
 
+  func weekAndMonthCountsRespectCalendarBoundaries() {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+    calendar.firstWeekday = 2
+    let now = calendar.date(from: DateComponents(year: 2024, month: 9, day: 18, hour: 12))!
+    let starts = [
+      calendar.date(from: DateComponents(year: 2024, month: 9, day: 18, hour: 9))!,
+      calendar.date(from: DateComponents(year: 2024, month: 9, day: 16, hour: 9))!,
+      calendar.date(from: DateComponents(year: 2024, month: 9, day: 5, hour: 9))!,
+      calendar.date(from: DateComponents(year: 2024, month: 8, day: 25, hour: 9))!,
+    ]
+    var timer = TimerState()
+    for start in starts {
+      timer.start(at: start)
+      timer.finishIfDue(at: start.addingTimeInterval(1500), preferences: preferences)
+      timer.skip(preferences: preferences)
+    }
+    expect(timer.completedToday(at: now, calendar: calendar) == 1)
+    expect(timer.completedThisWeek(at: now, calendar: calendar) == 2)
+    expect(timer.completedThisMonth(at: now, calendar: calendar) == 3)
+  }
+
+  func lifetimeCountsAndStreaksUseActiveCalendarDays() {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+    let now = calendar.date(from: DateComponents(year: 2024, month: 9, day: 18, hour: 12))!
+    let starts = [
+      (2024, 9, 10),
+      (2024, 9, 11),
+      (2024, 9, 12),
+      (2024, 9, 16),
+      (2024, 9, 17),
+      (2024, 9, 17),
+    ]
+    var timer = TimerState()
+    for (year, month, day) in starts {
+      let start = calendar.date(
+        from: DateComponents(year: year, month: month, day: day, hour: 9))!
+      timer.start(at: start)
+      timer.finishIfDue(at: start.addingTimeInterval(1500), preferences: preferences)
+      timer.skip(preferences: preferences)
+    }
+
+    expect(timer.completedLifetime == 6)
+    expect(timer.completionCountsByDay(calendar: calendar).count == 5)
+    expect(timer.currentStreak(at: now, calendar: calendar) == 2)
+    expect(timer.longestStreak(calendar: calendar) == 3)
+  }
+
   func boundsPreventInvalidDurations() {
     var p = preferences
     p.focusMinutes = -1
     p.shortBreakMinutes = 10000
     expect(p.duration(for: .focus) == 60)
     expect(p.duration(for: .shortBreak) == 10800)
+  }
+
+  func olderPreferencesDecodeWithDoNotDisturbDisabled() throws {
+    let data = Data(
+      #"{"focusMinutes":40,"shortBreakMinutes":8,"longBreakMinutes":20,"sound":false}"#.utf8)
+    let decoded = try JSONDecoder().decode(Preferences.self, from: data)
+    expect(decoded.focusMinutes == 40)
+    expect(decoded.shortBreakMinutes == 8)
+    expect(decoded.longBreakMinutes == 20)
+    expect(!decoded.sound)
+    expect(!decoded.doNotDisturbDuringFocus)
+  }
+
+  func focusSessionActivityCoversRunningAndPausedButNotBreaksOrReset() {
+    var timer = TimerState()
+    expect(!timer.isFocusSessionActive)
+    timer.start(at: start)
+    expect(timer.isFocusSessionActive)
+    timer.pause(at: start.addingTimeInterval(60))
+    expect(timer.isFocusSessionActive)
+    timer.reset(preferences: preferences)
+    expect(!timer.isFocusSessionActive)
+    timer.start(at: start)
+    timer.finishIfDue(at: start.addingTimeInterval(1500), preferences: preferences)
+    expect(timer.phase == .shortBreak)
+    expect(!timer.isFocusSessionActive)
   }
 
   func noCompletionBeforeDeadlineAndStartIsIdempotent() {
@@ -108,7 +183,25 @@ struct TimerStateTests {
       timer.finishIfDue(at: start.addingTimeInterval(900), preferences: preferences) == .longBreak)
     expect(timer.phase == .focus)
     expect(timer.remaining == 1500)
+    expect(timer.isRunning)
     expect(timer.completedDates.isEmpty)
+  }
+
+  func completedIntervalsContinueIntoTheNextPhase() {
+    var timer = TimerState()
+    timer.start(at: start)
+
+    let focusDeadline = start.addingTimeInterval(1500)
+    expect(timer.finishIfDue(at: focusDeadline, preferences: preferences) == .focus)
+    expect(timer.phase == .shortBreak)
+    expect(timer.isRunning)
+    expect(timer.secondsLeft(at: focusDeadline) == 300)
+
+    let breakDeadline = focusDeadline.addingTimeInterval(300)
+    expect(timer.finishIfDue(at: breakDeadline, preferences: preferences) == .shortBreak)
+    expect(timer.phase == .focus)
+    expect(timer.isRunning)
+    expect(timer.secondsLeft(at: breakDeadline) == 1500)
   }
 }
 
@@ -133,12 +226,22 @@ func expect(_ condition: @autoclosure () -> Bool, file: StaticString = #file, li
     print("PASS persistenceRetainsDeadlineAndPausedState")
     tests.todayCountRespectsDayBoundary()
     print("PASS todayCountRespectsDayBoundary")
+    tests.weekAndMonthCountsRespectCalendarBoundaries()
+    print("PASS weekAndMonthCountsRespectCalendarBoundaries")
+    tests.lifetimeCountsAndStreaksUseActiveCalendarDays()
+    print("PASS lifetimeCountsAndStreaksUseActiveCalendarDays")
     tests.boundsPreventInvalidDurations()
     print("PASS boundsPreventInvalidDurations")
+    try tests.olderPreferencesDecodeWithDoNotDisturbDisabled()
+    print("PASS olderPreferencesDecodeWithDoNotDisturbDisabled")
+    tests.focusSessionActivityCoversRunningAndPausedButNotBreaksOrReset()
+    print("PASS focusSessionActivityCoversRunningAndPausedButNotBreaksOrReset")
     tests.noCompletionBeforeDeadlineAndStartIsIdempotent()
     print("PASS noCompletionBeforeDeadlineAndStartIsIdempotent")
     tests.completedBreakReturnsToFocusWithoutCredit()
     print("PASS completedBreakReturnsToFocusWithoutCredit")
-    print("10 timer regression checks passed")
+    tests.completedIntervalsContinueIntoTheNextPhase()
+    print("PASS completedIntervalsContinueIntoTheNextPhase")
+    print("15 timer regression checks passed")
   }
 }
