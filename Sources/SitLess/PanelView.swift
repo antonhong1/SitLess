@@ -43,22 +43,24 @@ struct PanelView: View {
       }
       Divider()
       HStack {
-        Button {
-          page = page == .stats ? .timer : .stats
-        } label: {
-          HStack(spacing: 5) {
-            Label(
-              "\(store.state.completedToday(at: store.now)) completed today",
-              systemImage: "checkmark.circle"
-            )
-            Image(systemName: page == .stats ? "chevron.down" : "chevron.right")
-              .font(.system(size: 8, weight: .semibold))
+        if page == .timer {
+          Button {
+            page = .stats
+          } label: {
+            HStack(spacing: 5) {
+              Label(
+                "\(store.state.completedToday(at: store.now)) completed today",
+                systemImage: "checkmark.circle"
+              )
+              Image(systemName: "chevron.right")
+                .font(.system(size: 8, weight: .semibold))
+            }
+            .font(.system(size: 11))
+            .foregroundStyle(.secondary)
           }
-          .font(.system(size: 11))
-          .foregroundStyle(page == .stats ? accent : .secondary)
+          .buttonStyle(.borderless)
+          .accessibilityLabel("Open focus stats")
         }
-        .buttonStyle(.borderless)
-        .accessibilityLabel(page == .stats ? "Back to timer" : "Open focus stats")
         Spacer()
         Button("Quit") {
           store.persist()
