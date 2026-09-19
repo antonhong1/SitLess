@@ -63,8 +63,47 @@ private final class PanelHostingController: NSHostingController<PanelSurface> {
   }
 }
 
+private func statusImage(time: String?) -> NSImage {
+  let iconSize: CGFloat = 15
+  let spacing: CGFloat = time == nil ? 0 : 4
+  let shadow = NSShadow()
+  shadow.shadowColor = NSColor.black.withAlphaComponent(0.48)
+  shadow.shadowBlurRadius = 1.5
+  shadow.shadowOffset = NSSize(width: 0, height: -1)
+  let attributes: [NSAttributedString.Key: Any] = [
+    .font: NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .semibold),
+    .foregroundColor: NSColor.white,
+    .shadow: shadow,
+  ]
+  let title = NSAttributedString(string: time ?? "", attributes: attributes)
+  let titleSize = time == nil ? .zero : title.size()
+  let imageSize = NSSize(width: iconSize + spacing + ceil(titleSize.width), height: 18)
+  let image = NSImage(size: imageSize, flipped: false) { rect in
+    let iconRect = NSRect(x: 0, y: (rect.height - iconSize) / 2, width: iconSize, height: iconSize)
+    let symbolConfig = NSImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
+    if let icon = NSImage(systemSymbolName: "timer", accessibilityDescription: "SitLess")?
+      .withSymbolConfiguration(symbolConfig)
+    {
+      icon.draw(in: iconRect)
+      NSGraphicsContext.saveGraphicsState()
+      NSGraphicsContext.current?.compositingOperation = .sourceIn
+      NSColor.white.setFill()
+      NSBezierPath(rect: iconRect).fill()
+      NSGraphicsContext.restoreGraphicsState()
+    }
+    if time != nil {
+      title.draw(at: NSPoint(x: iconSize + spacing, y: (rect.height - titleSize.height) / 2))
+    }
+    return true
+  }
+  image.isTemplate = false
+  return image
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
   private var statusItem: NSStatusItem?
+  private weak var statusButton: NSStatusBarButton?
+  private var renderedStatusTime: String?
   private var panel: SitLessPanel?
   private var hostingController: PanelHostingController?
   private let menuBarKeeper = NSPopover()
@@ -86,11 +125,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     statusItem = item
     if let button = item.button {
-      button.image = NSImage(systemSymbolName: "timer", accessibilityDescription: "SitLess")
-      button.imagePosition = .imageLeading
-      button.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+      button.imagePosition = .imageOnly
+      button.title = ""
       button.target = self
       button.action = #selector(togglePanel)
+      statusButton = button
     }
     configurePanel(for: store)
     store.onChange = { [weak self] in self?.updateStatus() }
@@ -130,13 +169,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   private func updateStatus() {
-    guard let store, let button = statusItem?.button else { return }
-    button.title = store.state.hasStarted ? " \(store.timeText)" : ""
-    button.alphaValue = 1
-    button.toolTip = "SitLess · \(store.state.phase.title) · \(store.timeText)"
-    button.setAccessibilityLabel(
+    guard let store, let statusItem, let statusButton else { return }
+    let accessibilityText =
       "SitLess, \(store.state.phase.title), \(store.timeText)\(store.state.isRunning ? " running" : " ready")"
-    )
+    let displayTime = store.state.hasStarted ? store.timeText : nil
+    if statusButton.image == nil || displayTime != renderedStatusTime {
+      let image = statusImage(time: displayTime)
+      statusButton.image = image
+      statusItem.length = image.size.width + 12
+      renderedStatusTime = displayTime
+    }
+    statusButton.toolTip = "SitLess · \(store.state.phase.title) · \(store.timeText)"
+    statusButton.setAccessibilityLabel(accessibilityText)
   }
 
   @objc private func woke() { store?.tick() }
@@ -145,7 +189,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   private func showPanel() {
-    guard let button = statusItem?.button, let buttonWindow = button.window,
+    guard let statusButton, let statusWindow = statusButton.window,
       let panel, let hostingController
     else { return }
     NSApp.activate(ignoringOtherApps: true)
@@ -153,8 +197,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let size = hostingController.view.fittingSize
     panel.setContentSize(size)
 
-    let anchor = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
-    let visibleFrame = (buttonWindow.screen ?? NSScreen.main)?.visibleFrame ?? anchor
+    let anchor = statusWindow.convertToScreen(statusButton.convert(statusButton.bounds, to: nil))
+    let visibleFrame = (statusWindow.screen ?? NSScreen.main)?.visibleFrame ?? anchor
     let x = min(
       max(anchor.midX - size.width / 2, visibleFrame.minX + 6),
       visibleFrame.maxX - size.width - 6)
@@ -162,7 +206,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       visibleFrame.minY + 6, min(anchor.minY - size.height, visibleFrame.maxY - size.height))
 
     if !menuBarKeeper.isShown {
-      menuBarKeeper.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+      menuBarKeeper.show(relativeTo: statusButton.bounds, of: statusButton, preferredEdge: .minY)
     }
     panel.setFrameOrigin(NSPoint(x: x, y: y))
     panel.orderFrontRegardless()
