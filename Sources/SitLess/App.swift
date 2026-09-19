@@ -63,49 +63,13 @@ private final class PanelHostingController: NSHostingController<PanelSurface> {
   }
 }
 
-private func statusImage(time: String?) -> NSImage {
-  let iconSize: CGFloat = 15
-  let spacing: CGFloat = time == nil ? 0 : 4
-  let shadow = NSShadow()
-  shadow.shadowColor = NSColor.black.withAlphaComponent(0.48)
-  shadow.shadowBlurRadius = 1.5
-  shadow.shadowOffset = NSSize(width: 0, height: -1)
-  let attributes: [NSAttributedString.Key: Any] = [
-    .font: NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .semibold),
-    .foregroundColor: NSColor.white,
-    .shadow: shadow,
-  ]
-  let title = NSAttributedString(string: time ?? "", attributes: attributes)
-  let titleSize = time == nil ? .zero : title.size()
-  let imageSize = NSSize(width: iconSize + spacing + ceil(titleSize.width), height: 18)
-  let image = NSImage(size: imageSize, flipped: false) { rect in
-    let iconRect = NSRect(x: 0, y: (rect.height - iconSize) / 2, width: iconSize, height: iconSize)
-    let symbolConfig = NSImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
-    if let icon = NSImage(systemSymbolName: "timer", accessibilityDescription: "SitLess")?
-      .withSymbolConfiguration(symbolConfig)
-    {
-      icon.draw(in: iconRect)
-      NSGraphicsContext.saveGraphicsState()
-      NSGraphicsContext.current?.compositingOperation = .sourceIn
-      NSColor.white.setFill()
-      NSBezierPath(rect: iconRect).fill()
-      NSGraphicsContext.restoreGraphicsState()
-    }
-    if time != nil {
-      title.draw(at: NSPoint(x: iconSize + spacing, y: (rect.height - titleSize.height) / 2))
-    }
-    return true
-  }
-  image.isTemplate = false
-  return image
-}
-
 final class AppDelegate: NSObject, NSApplicationDelegate {
   private var statusItem: NSStatusItem?
   private weak var statusButton: NSStatusBarButton?
   private var renderedStatusTime: String?
   private var panel: SitLessPanel?
   private var hostingController: PanelHostingController?
+  private var outsideClickMonitor: Any?
   private let menuBarKeeper = NSPopover()
   private var store: TimerStore?
 
@@ -125,8 +89,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     statusItem = item
     if let button = item.button {
+      let symbolConfig = NSImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
+      let image = NSImage(systemSymbolName: "timer", accessibilityDescription: "SitLess")?
+        .withSymbolConfiguration(symbolConfig)
+      image?.isTemplate = true
+      button.image = image
+      button.imageScaling = .scaleProportionallyDown
       button.imagePosition = .imageOnly
       button.title = ""
+      button.font = .monospacedDigitSystemFont(ofSize: 13, weight: .semibold)
       button.target = self
       button.action = #selector(togglePanel)
       statusButton = button
@@ -136,9 +107,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     NSWorkspace.shared.notificationCenter.addObserver(
       self, selector: #selector(woke), name: NSWorkspace.didWakeNotification, object: nil)
     updateStatus()
-    let firstLaunch = !UserDefaults.standard.bool(forKey: "hasLaunched")
-    UserDefaults.standard.set(true, forKey: "hasLaunched")
-    if firstLaunch || CommandLine.arguments.contains("--show") { showPanel() }
+    showPanel()
   }
 
   private func configurePanel(for store: TimerStore) {
@@ -151,6 +120,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     panel.backgroundColor = .clear
     panel.isOpaque = false
     panel.hasShadow = false
+    panel.hidesOnDeactivate = false
     panel.level = .popUpMenu
     panel.collectionBehavior = [.transient, .moveToActiveSpace, .fullScreenAuxiliary]
     panel.contentViewController = hostingController
@@ -159,6 +129,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     self.hostingController = hostingController
     self.panel = panel
+
+    outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
+      matching: [.leftMouseDown, .rightMouseDown]
+    ) { [weak self] _ in
+      DispatchQueue.main.async {
+        guard self?.panel?.isVisible == true else { return }
+        self?.hidePanel()
+      }
+    }
 
     let keeperController = NSViewController()
     keeperController.view = NSView(frame: NSRect(x: 0, y: 0, width: 1, height: 1))
@@ -170,13 +149,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   private func updateStatus() {
     guard let store, let statusItem, let statusButton else { return }
+    let activity = store.state.isRunning ? "running" : store.state.hasStarted ? "paused" : "ready"
     let accessibilityText =
-      "SitLess, \(store.state.phase.title), \(store.timeText)\(store.state.isRunning ? " running" : " ready")"
+      "SitLess, \(store.state.phase.title), \(store.timeText), \(activity)"
     let displayTime = store.state.hasStarted ? store.timeText : nil
-    if statusButton.image == nil || displayTime != renderedStatusTime {
-      let image = statusImage(time: displayTime)
-      statusButton.image = image
-      statusItem.length = image.size.width + 12
+    if displayTime != renderedStatusTime {
+      statusButton.title = displayTime ?? ""
+      statusButton.imagePosition = displayTime == nil ? .imageOnly : .imageLeading
+      statusItem.length = NSStatusItem.variableLength
       renderedStatusTime = displayTime
     }
     statusButton.toolTip = "SitLess · \(store.state.phase.title) · \(store.timeText)"
@@ -232,13 +212,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     panel.setFrame(NSRect(origin: NSPoint(x: x, y: y), size: size), display: true)
   }
 
-  func applicationDidResignActive(_ notification: Notification) { hidePanel() }
   func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool
   {
     showPanel()
     return true
   }
-  func applicationWillTerminate(_ notification: Notification) { store?.persist() }
+  func applicationWillTerminate(_ notification: Notification) {
+    store?.persist()
+    if let outsideClickMonitor { NSEvent.removeMonitor(outsideClickMonitor) }
+  }
 
   func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
     guard let store else { return .terminateNow }
