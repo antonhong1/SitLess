@@ -144,7 +144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private func configurePanel(for store: TimerStore) {
     let hostingController = PanelHostingController(
       rootView: PanelSurface(store: store) { [weak self] in self?.hidePanel() })
-    hostingController.sizingOptions = [.preferredContentSize, .intrinsicContentSize]
+    hostingController.sizingOptions = [.intrinsicContentSize]
     let panel = SitLessPanel(
       contentRect: NSRect(x: 0, y: 0, width: 340, height: 560),
       styleMask: [.borderless], backing: .buffered, defer: false)
@@ -197,18 +197,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let size = hostingController.view.fittingSize
     panel.setContentSize(size)
 
-    let anchor = statusWindow.convertToScreen(statusButton.convert(statusButton.bounds, to: nil))
-    let visibleFrame = (statusWindow.screen ?? NSScreen.main)?.visibleFrame ?? anchor
-    let x = min(
-      max(anchor.midX - size.width / 2, visibleFrame.minX + 6),
-      visibleFrame.maxX - size.width - 6)
-    let y = max(
-      visibleFrame.minY + 6, min(anchor.minY - size.height, visibleFrame.maxY - size.height))
-
     if !menuBarKeeper.isShown {
       menuBarKeeper.show(relativeTo: statusButton.bounds, of: statusButton, preferredEdge: .minY)
     }
-    panel.setFrameOrigin(NSPoint(x: x, y: y))
+    positionPanel(panel, size: size, below: statusButton, in: statusWindow)
     panel.orderFrontRegardless()
     panel.makeKey()
   }
@@ -219,15 +211,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   private func resizeVisiblePanel(to size: NSSize) {
-    guard let panel, panel.isVisible, size.width > 0, size.height > 0 else { return }
-    var frame = panel.frame
-    guard abs(frame.width - size.width) > 0.5 || abs(frame.height - size.height) > 0.5 else {
-      return
-    }
-    let top = frame.maxY
-    frame.size = size
-    frame.origin.y = top - size.height
-    panel.setFrame(frame, display: true)
+    guard let panel, panel.isVisible, let statusButton, let statusWindow = statusButton.window,
+      size.width > 0, size.height > 0,
+      abs(panel.frame.width - size.width) > 0.5 || abs(panel.frame.height - size.height) > 0.5
+    else { return }
+    positionPanel(panel, size: size, below: statusButton, in: statusWindow)
+  }
+
+  private func positionPanel(
+    _ panel: NSPanel, size: NSSize, below statusButton: NSStatusBarButton,
+    in statusWindow: NSWindow
+  ) {
+    let anchor = statusWindow.convertToScreen(statusButton.convert(statusButton.bounds, to: nil))
+    let visibleFrame = (statusWindow.screen ?? NSScreen.main)?.visibleFrame ?? anchor
+    let x = min(
+      max(anchor.midX - size.width / 2, visibleFrame.minX + 6),
+      visibleFrame.maxX - size.width - 6)
+    let y = max(
+      visibleFrame.minY + 6, min(anchor.minY - size.height, visibleFrame.maxY - size.height))
+    panel.setFrame(NSRect(origin: NSPoint(x: x, y: y), size: size), display: true)
   }
 
   func applicationDidResignActive(_ notification: Notification) { hidePanel() }
