@@ -1,5 +1,9 @@
 # SitLess
 
+<p align="center">
+  <img src="assets/sitless.png" width="373" alt="SitLess focus timer in the macOS menu bar">
+</p>
+
 ## How it works
 
 Start a focus session and work until the timer ends.
