@@ -64,6 +64,10 @@ public struct TimerState: Codable, Sendable {
     max(0, deadline.map { $0.timeIntervalSince(now) } ?? remaining)
   }
 
+  public func progress(at now: Date) -> Double {
+    min(1, max(0, secondsLeft(at: now) / max(1, total)))
+  }
+
   public mutating func start(at now: Date) {
     guard !isRunning else { return }
     deadline = now.addingTimeInterval(remaining)
@@ -88,8 +92,12 @@ public struct TimerState: Codable, Sendable {
     reset(preferences: preferences)
   }
 
-  public mutating func skip(preferences: Preferences) {
-    phase = phase == .focus ? .shortBreak : .focus
+  public mutating func skip(at now: Date, preferences: Preferences) {
+    if phase == .focus {
+      completeFocus(at: now)
+    } else {
+      phase = .focus
+    }
     reset(preferences: preferences)
   }
 
@@ -99,17 +107,21 @@ public struct TimerState: Codable, Sendable {
     guard let deadline, now >= deadline else { return nil }
     let finished = phase
     if phase == .focus {
-      completedInCycle += 1
-      completedDates.append(deadline)
-      completedDates = Array(completedDates.suffix(1000))
-      phase = completedInCycle >= 4 ? .longBreak : .shortBreak
-      if completedInCycle >= 4 { completedInCycle = 0 }
+      completeFocus(at: deadline)
     } else {
       phase = .focus
     }
     reset(preferences: preferences)
     start(at: now)
     return finished
+  }
+
+  private mutating func completeFocus(at date: Date) {
+    completedInCycle += 1
+    completedDates.append(date)
+    completedDates = Array(completedDates.suffix(1000))
+    phase = completedInCycle >= 4 ? .longBreak : .shortBreak
+    if completedInCycle >= 4 { completedInCycle = 0 }
   }
 
   public func completedToday(at now: Date, calendar: Calendar = .current) -> Int {
