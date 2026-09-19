@@ -8,7 +8,6 @@ private enum PanelPage {
 struct PanelView: View {
   @Bindable var store: TimerStore
   @State private var page: PanelPage = .timer
-  @State private var pendingPhase: Phase?
   private var accent: Color { store.state.phase == .focus ? .orange : .teal }
 
   private var title: String {
@@ -79,18 +78,6 @@ struct PanelView: View {
     }
     .tint(accent)
     .alert(
-      "Replace this session?",
-      isPresented: Binding(get: { pendingPhase != nil }, set: { if !$0 { pendingPhase = nil } })
-    ) {
-      Button("Cancel", role: .cancel) { pendingPhase = nil }
-      Button("Switch", role: .destructive) {
-        if let phase = pendingPhase { store.select(phase) }
-        pendingPhase = nil
-      }
-    } message: {
-      Text("The current countdown will be reset. Completed sessions are kept.")
-    }
-    .alert(
       "SitLess",
       isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })
     ) {
@@ -102,20 +89,6 @@ struct PanelView: View {
 
   private var timerView: some View {
     VStack(spacing: 22) {
-      Picker(
-        "Session",
-        selection: Binding(
-          get: { store.state.phase },
-          set: {
-            guard $0 != store.state.phase else { return }
-            if store.state.hasStarted { pendingPhase = $0 } else { store.select($0) }
-          })
-      ) {
-        Text("Focus").tag(Phase.focus)
-        Text("Short break").tag(Phase.shortBreak)
-        Text("Long break").tag(Phase.longBreak)
-      }.pickerStyle(.segmented).labelsHidden()
-
       ZStack {
         Circle().stroke(accent.opacity(0.12), lineWidth: 5)
         Circle().trim(from: 0, to: store.progress)
