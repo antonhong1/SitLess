@@ -1,33 +1,52 @@
-# FocusBar
+# SitLess
 
-A small native macOS menu-bar Pomodoro timer, built locally for this Mac. Requires macOS 14 or later and Swift 6.2+ command-line tools to rebuild. No third-party dependencies, accounts, servers, or network requests.
+## How it works
 
-## Use
+Start a focus session and work until the timer ends.
 
-Open `/Applications/FocusBar.app`, then click the timer symbol in the menu bar. Start with 25 minutes of focus, 5 minutes of short break, and 15 minutes of long break. Durations are adjustable. After four completed focus sessions the next interval is a long break. Each interval starts manually.
+SitLess then prepares a short break. Use that time to stand up, stretch, get some water, or walk around.
 
-- Start/pause/resume, reset, and skip are in the timer panel.
-- Space starts or pauses, Command-R resets, Command-S skips, and Command-Q quits while the panel is open.
-- Settings includes optional completion sounds, notifications, and launch at login. Notifications and launch at login are off until enabled.
-- A running timer keeps its deadline across sleep and quitting. Relaunching after expiry records exactly one completion and leaves the next session ready. Paused timers stay paused.
-- Settings changes affect the next interval, or the current interval after Reset. Skipping never counts as completing a focus session.
-- If notifications are denied, enable them in System Settings → Notifications → FocusBar. Sound plays when the running app observes completion; it cannot wake a sleeping Mac.
+After four focus sessions, SitLess prepares a longer break.
 
-## Build and validate
+Nothing starts automatically. You decide when you are ready to begin the next timer.
+
+The default timers are 25 minutes for focus, 5 minutes for a short break, and 15 minutes for a long break. You can change these times in the app.
+
+## Features
+
+- Focus, short-break, and long-break timers
+- Pause, resume, reset, and skip controls
+- Adjustable timer lengths
+- Optional completion sounds
+- Optional launch at login
+- Timer recovery after sleep or restart
+
+## Keyboard shortcuts
+
+| Action | Shortcut |
+| --- | --- |
+| Start or pause | Space |
+| Reset | Command-R |
+| Skip | Command-S |
+| Quit | Command-Q |
+
+The shortcuts work while the SitLess panel is open.
+
+## Privacy
+
+SitLess runs entirely on your Mac.
+
+The app has no account, analytics, advertising, or cloud service. It does not make network requests.
+
+Your timer and preferences stay on your computer.
+
+## Build from source
+
+SitLess requires macOS 14 or later and Swift 6.2 or later.
 
 ```sh
 swift run FocusCoreChecks
 bash scripts/build.sh
-specific check
-specific dev --key focusbar-personal
 ```
 
-The test executable has 10 deterministic timer regression cases. It uses standard Swift assertions because the installed standalone Command Line Tools do not include Swift Testing. The build produces `dist/FocusBar.app` and applies a local ad-hoc signature. It is not an Apple-notarized distributable.
-
-To install a new build, quit FocusBar, copy `dist/FocusBar.app` to `/Applications`, and open it. No Gatekeeper setting is changed by this project. Launch at login uses Apple's SMAppService; notifications use UNUserNotificationCenter.
-
-The preferences and timer state are local to the `local.anton.FocusBar` UserDefaults domain. Removing the app does not erase these preferences. Source lives in its own Git repository at `~/Projects/FocusBar`, independent of Feron. Build output in `dist/` and Swift build caches are ignored by Git.
-
-Apple API references:
-- https://developer.apple.com/documentation/servicemanagement/smappservice
-- https://developer.apple.com/documentation/usernotifications/unusernotificationcenter
+The finished app appears at `dist/SitLess.app`. Move it to `/Applications` and open it.

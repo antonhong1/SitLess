@@ -16,7 +16,6 @@ public struct Preferences: Codable, Equatable, Sendable {
   public var shortBreakMinutes = 5
   public var longBreakMinutes = 15
   public var sound = true
-  public var notifications = false
   public init() {}
   public func duration(for phase: Phase) -> TimeInterval {
     let minutes =

@@ -1,5 +1,3 @@
 .build/
 dist/
 .DS_Store
-.specific/
-specific.local
