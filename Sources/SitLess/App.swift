@@ -239,4 +239,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     return true
   }
   func applicationWillTerminate(_ notification: Notification) { store?.persist() }
+
+  func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+    guard let store else { return .terminateNow }
+    Task {
+      await store.prepareForTermination()
+      sender.reply(toApplicationShouldTerminate: true)
+    }
+    return .terminateLater
+  }
 }

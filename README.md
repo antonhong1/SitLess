@@ -22,6 +22,7 @@ The default timers are 25 minutes for focus, 5 minutes for a short break, and 15
 - Pause, resume, reset, and skip controls
 - Adjustable timer lengths
 - Optional completion sounds
+- Optional Do Not Disturb during focus sessions
 - Optional launch at login
 - Timer recovery after sleep or restart
 
@@ -43,6 +44,8 @@ SitLess runs entirely on your Mac.
 The app has no account, analytics, advertising, or cloud service. It does not make network requests.
 
 Your timer and preferences stay on your computer.
+
+If you enable Do Not Disturb during focus, macOS asks for Accessibility permission so SitLess can operate the Focus control in Control Center. SitLess does not use that permission to read or control other apps.
 
 ## Build from source
 

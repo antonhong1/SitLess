@@ -140,6 +140,32 @@ struct TimerStateTests {
     expect(p.duration(for: .shortBreak) == 10800)
   }
 
+  func olderPreferencesDecodeWithDoNotDisturbDisabled() throws {
+    let data = Data(
+      #"{"focusMinutes":40,"shortBreakMinutes":8,"longBreakMinutes":20,"sound":false}"#.utf8)
+    let decoded = try JSONDecoder().decode(Preferences.self, from: data)
+    expect(decoded.focusMinutes == 40)
+    expect(decoded.shortBreakMinutes == 8)
+    expect(decoded.longBreakMinutes == 20)
+    expect(!decoded.sound)
+    expect(!decoded.doNotDisturbDuringFocus)
+  }
+
+  func focusSessionActivityCoversRunningAndPausedButNotBreaksOrReset() {
+    var timer = TimerState()
+    expect(!timer.isFocusSessionActive)
+    timer.start(at: start)
+    expect(timer.isFocusSessionActive)
+    timer.pause(at: start.addingTimeInterval(60))
+    expect(timer.isFocusSessionActive)
+    timer.reset(preferences: preferences)
+    expect(!timer.isFocusSessionActive)
+    timer.start(at: start)
+    timer.finishIfDue(at: start.addingTimeInterval(1500), preferences: preferences)
+    expect(timer.phase == .shortBreak)
+    expect(!timer.isFocusSessionActive)
+  }
+
   func noCompletionBeforeDeadlineAndStartIsIdempotent() {
     var timer = TimerState()
     timer.start(at: start)
@@ -188,10 +214,14 @@ func expect(_ condition: @autoclosure () -> Bool, file: StaticString = #file, li
     print("PASS lifetimeCountsAndStreaksUseActiveCalendarDays")
     tests.boundsPreventInvalidDurations()
     print("PASS boundsPreventInvalidDurations")
+    try tests.olderPreferencesDecodeWithDoNotDisturbDisabled()
+    print("PASS olderPreferencesDecodeWithDoNotDisturbDisabled")
+    tests.focusSessionActivityCoversRunningAndPausedButNotBreaksOrReset()
+    print("PASS focusSessionActivityCoversRunningAndPausedButNotBreaksOrReset")
     tests.noCompletionBeforeDeadlineAndStartIsIdempotent()
     print("PASS noCompletionBeforeDeadlineAndStartIsIdempotent")
     tests.completedBreakReturnsToFocusWithoutCredit()
     print("PASS completedBreakReturnsToFocusWithoutCredit")
-    print("12 timer regression checks passed")
+    print("14 timer regression checks passed")
   }
 }

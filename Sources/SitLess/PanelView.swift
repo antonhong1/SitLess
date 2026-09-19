@@ -180,6 +180,8 @@ struct PanelView: View {
       Divider()
       Toggle("Play sound when a session ends", isOn: $store.preferences.sound)
       Toggle(
+        "Do Not Disturb during focus", isOn: $store.preferences.doNotDisturbDuringFocus)
+      Toggle(
         "Launch at login", isOn: Binding(get: { store.loginEnabled }, set: { store.setLogin($0) }))
       Divider()
       VStack(alignment: .leading, spacing: 6) {

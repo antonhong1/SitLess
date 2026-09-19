@@ -16,7 +16,23 @@ public struct Preferences: Codable, Equatable, Sendable {
   public var shortBreakMinutes = 5
   public var longBreakMinutes = 15
   public var sound = true
+  public var doNotDisturbDuringFocus = false
   public init() {}
+
+  private enum CodingKeys: String, CodingKey {
+    case focusMinutes, shortBreakMinutes, longBreakMinutes, sound, doNotDisturbDuringFocus
+  }
+
+  public init(from decoder: Decoder) throws {
+    let values = try decoder.container(keyedBy: CodingKeys.self)
+    focusMinutes = try values.decodeIfPresent(Int.self, forKey: .focusMinutes) ?? 25
+    shortBreakMinutes = try values.decodeIfPresent(Int.self, forKey: .shortBreakMinutes) ?? 5
+    longBreakMinutes = try values.decodeIfPresent(Int.self, forKey: .longBreakMinutes) ?? 15
+    sound = try values.decodeIfPresent(Bool.self, forKey: .sound) ?? true
+    doNotDisturbDuringFocus =
+      try values.decodeIfPresent(Bool.self, forKey: .doNotDisturbDuringFocus) ?? false
+  }
+
   public func duration(for phase: Phase) -> TimeInterval {
     let minutes =
       switch phase {
@@ -37,6 +53,7 @@ public struct TimerState: Codable, Sendable {
   public private(set) var completedDates: [Date] = []
   public private(set) var hasStarted = false
   public var isRunning: Bool { deadline != nil }
+  public var isFocusSessionActive: Bool { phase == .focus && hasStarted }
 
   public init(preferences: Preferences = Preferences()) {
     remaining = preferences.duration(for: .focus)
