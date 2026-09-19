@@ -97,4 +97,19 @@ public struct TimerState: Codable, Sendable {
   public func completedToday(at now: Date, calendar: Calendar = .current) -> Int {
     completedDates.filter { calendar.isDate($0, inSameDayAs: now) }.count
   }
+
+  public func completedThisWeek(at now: Date, calendar: Calendar = .current) -> Int {
+    completed(in: .weekOfYear, at: now, calendar: calendar)
+  }
+
+  public func completedThisMonth(at now: Date, calendar: Calendar = .current) -> Int {
+    completed(in: .month, at: now, calendar: calendar)
+  }
+
+  private func completed(
+    in component: Calendar.Component, at now: Date, calendar: Calendar
+  ) -> Int {
+    guard let interval = calendar.dateInterval(of: component, for: now) else { return 0 }
+    return completedDates.filter(interval.contains).count
+  }
 }

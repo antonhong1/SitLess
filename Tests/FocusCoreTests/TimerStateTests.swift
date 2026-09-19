@@ -83,6 +83,28 @@ struct TimerStateTests {
     expect(timer.completedToday(at: day.addingTimeInterval(86400), calendar: calendar) == 0)
   }
 
+  func weekAndMonthCountsRespectCalendarBoundaries() {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+    calendar.firstWeekday = 2
+    let now = calendar.date(from: DateComponents(year: 2024, month: 9, day: 18, hour: 12))!
+    let starts = [
+      calendar.date(from: DateComponents(year: 2024, month: 9, day: 18, hour: 9))!,
+      calendar.date(from: DateComponents(year: 2024, month: 9, day: 16, hour: 9))!,
+      calendar.date(from: DateComponents(year: 2024, month: 9, day: 5, hour: 9))!,
+      calendar.date(from: DateComponents(year: 2024, month: 8, day: 25, hour: 9))!,
+    ]
+    var timer = TimerState()
+    for start in starts {
+      timer.start(at: start)
+      timer.finishIfDue(at: start.addingTimeInterval(1500), preferences: preferences)
+      timer.skip(preferences: preferences)
+    }
+    expect(timer.completedToday(at: now, calendar: calendar) == 1)
+    expect(timer.completedThisWeek(at: now, calendar: calendar) == 2)
+    expect(timer.completedThisMonth(at: now, calendar: calendar) == 3)
+  }
+
   func boundsPreventInvalidDurations() {
     var p = preferences
     p.focusMinutes = -1
@@ -133,12 +155,14 @@ func expect(_ condition: @autoclosure () -> Bool, file: StaticString = #file, li
     print("PASS persistenceRetainsDeadlineAndPausedState")
     tests.todayCountRespectsDayBoundary()
     print("PASS todayCountRespectsDayBoundary")
+    tests.weekAndMonthCountsRespectCalendarBoundaries()
+    print("PASS weekAndMonthCountsRespectCalendarBoundaries")
     tests.boundsPreventInvalidDurations()
     print("PASS boundsPreventInvalidDurations")
     tests.noCompletionBeforeDeadlineAndStartIsIdempotent()
     print("PASS noCompletionBeforeDeadlineAndStartIsIdempotent")
     tests.completedBreakReturnsToFocusWithoutCredit()
     print("PASS completedBreakReturnsToFocusWithoutCredit")
-    print("10 timer regression checks passed")
+    print("11 timer regression checks passed")
   }
 }

@@ -155,6 +155,8 @@ struct PanelView: View {
       Toggle(
         "Launch at login", isOn: Binding(get: { store.loginEnabled }, set: { store.setLogin($0) }))
       Divider()
+      focusStats
+      Divider()
       VStack(alignment: .leading, spacing: 6) {
         Text("Space to start or pause · ⌘R to reset")
         Text("Shortcuts work while this panel is open.")
@@ -164,6 +166,33 @@ struct PanelView: View {
     .toggleStyle(.switch).font(.system(size: 12))
     .padding(20)
     .onChange(of: store.preferences) { _, _ in store.updatePreferences() }
+  }
+
+  private var focusStats: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Text("FOCUS STATS")
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundStyle(.secondary)
+      HStack(spacing: 0) {
+        statColumn("Today", value: store.state.completedToday(at: store.now))
+        Divider().frame(height: 34)
+        statColumn("This week", value: store.state.completedThisWeek(at: store.now))
+        Divider().frame(height: 34)
+        statColumn("This month", value: store.state.completedThisMonth(at: store.now))
+      }
+    }
+  }
+
+  private func statColumn(_ label: String, value: Int) -> some View {
+    VStack(spacing: 3) {
+      Text("\(value)")
+        .font(.system(size: 18, weight: .semibold, design: .rounded))
+        .monospacedDigit()
+      Text(label).font(.system(size: 10)).foregroundStyle(.secondary)
+    }
+    .frame(maxWidth: .infinity)
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("\(value) completed focus sessions \(label.lowercased())")
   }
 
   private func durationRow(_ title: String, value: Binding<Int>, range: ClosedRange<Int>)
