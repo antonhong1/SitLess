@@ -105,6 +105,33 @@ struct TimerStateTests {
     expect(timer.completedThisMonth(at: now, calendar: calendar) == 3)
   }
 
+  func lifetimeCountsAndStreaksUseActiveCalendarDays() {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+    let now = calendar.date(from: DateComponents(year: 2024, month: 9, day: 18, hour: 12))!
+    let starts = [
+      (2024, 9, 10),
+      (2024, 9, 11),
+      (2024, 9, 12),
+      (2024, 9, 16),
+      (2024, 9, 17),
+      (2024, 9, 17),
+    ]
+    var timer = TimerState()
+    for (year, month, day) in starts {
+      let start = calendar.date(
+        from: DateComponents(year: year, month: month, day: day, hour: 9))!
+      timer.start(at: start)
+      timer.finishIfDue(at: start.addingTimeInterval(1500), preferences: preferences)
+      timer.skip(preferences: preferences)
+    }
+
+    expect(timer.completedLifetime == 6)
+    expect(timer.completionCountsByDay(calendar: calendar).count == 5)
+    expect(timer.currentStreak(at: now, calendar: calendar) == 2)
+    expect(timer.longestStreak(calendar: calendar) == 3)
+  }
+
   func boundsPreventInvalidDurations() {
     var p = preferences
     p.focusMinutes = -1
@@ -157,12 +184,14 @@ func expect(_ condition: @autoclosure () -> Bool, file: StaticString = #file, li
     print("PASS todayCountRespectsDayBoundary")
     tests.weekAndMonthCountsRespectCalendarBoundaries()
     print("PASS weekAndMonthCountsRespectCalendarBoundaries")
+    tests.lifetimeCountsAndStreaksUseActiveCalendarDays()
+    print("PASS lifetimeCountsAndStreaksUseActiveCalendarDays")
     tests.boundsPreventInvalidDurations()
     print("PASS boundsPreventInvalidDurations")
     tests.noCompletionBeforeDeadlineAndStartIsIdempotent()
     print("PASS noCompletionBeforeDeadlineAndStartIsIdempotent")
     tests.completedBreakReturnsToFocusWithoutCredit()
     print("PASS completedBreakReturnsToFocusWithoutCredit")
-    print("11 timer regression checks passed")
+    print("12 timer regression checks passed")
   }
 }

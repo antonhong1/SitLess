@@ -106,6 +106,47 @@ public struct TimerState: Codable, Sendable {
     completed(in: .month, at: now, calendar: calendar)
   }
 
+  public var completedLifetime: Int { completedDates.count }
+
+  public func completionCountsByDay(calendar: Calendar = .current) -> [Date: Int] {
+    Dictionary(grouping: completedDates, by: calendar.startOfDay(for:))
+      .mapValues(\.count)
+  }
+
+  public func currentStreak(at now: Date, calendar: Calendar = .current) -> Int {
+    let activeDays = Set(completionCountsByDay(calendar: calendar).keys)
+    let today = calendar.startOfDay(for: now)
+    let yesterday = calendar.date(byAdding: .day, value: -1, to: today)
+    guard activeDays.contains(today) || yesterday.map(activeDays.contains) == true else { return 0 }
+
+    var cursor = activeDays.contains(today) ? today : yesterday!
+    var streak = 0
+    while activeDays.contains(cursor) {
+      streak += 1
+      guard let previous = calendar.date(byAdding: .day, value: -1, to: cursor) else { break }
+      cursor = previous
+    }
+    return streak
+  }
+
+  public func longestStreak(calendar: Calendar = .current) -> Int {
+    let activeDays = completionCountsByDay(calendar: calendar).keys.sorted()
+    guard !activeDays.isEmpty else { return 0 }
+
+    var longest = 1
+    var current = 1
+    for index in activeDays.indices.dropFirst() {
+      let previous = activeDays[activeDays.index(before: index)]
+      if calendar.dateComponents([.day], from: previous, to: activeDays[index]).day == 1 {
+        current += 1
+        longest = max(longest, current)
+      } else {
+        current = 1
+      }
+    }
+    return longest
+  }
+
   private func completed(
     in component: Calendar.Component, at now: Date, calendar: Calendar
   ) -> Int {

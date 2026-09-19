@@ -1,38 +1,65 @@
 import FocusCore
 import SwiftUI
 
+private enum PanelPage {
+  case timer, settings, stats
+}
+
 struct PanelView: View {
   @Bindable var store: TimerStore
-  @State private var settings = false
+  @State private var page: PanelPage = .timer
   @State private var pendingPhase: Phase?
   private var accent: Color { store.state.phase == .focus ? .orange : .teal }
+
+  private var title: String {
+    switch page {
+    case .timer: "SitLess"
+    case .settings: "Settings"
+    case .stats: "Stats"
+    }
+  }
 
   var body: some View {
     VStack(spacing: 0) {
       HStack {
-        Image(systemName: "timer").foregroundStyle(accent)
-        Text(settings ? "Settings" : "SitLess").font(.system(size: 14, weight: .semibold))
+        Image(systemName: page == .stats ? "chart.bar.fill" : "timer").foregroundStyle(accent)
+        Text(title).font(.system(size: 14, weight: .semibold))
         Spacer()
         Button {
-          settings.toggle()
+          page = page == .timer ? .settings : .timer
         } label: {
-          Image(systemName: settings ? "xmark" : "gearshape")
+          Image(systemName: page == .timer ? "gearshape" : "xmark")
             .frame(width: 26, height: 26)
         }
         .buttonStyle(.borderless)
-        .accessibilityLabel(settings ? "Close settings" : "Settings")
-        .help(settings ? "Back to timer" : "Settings")
+        .accessibilityLabel(page == .timer ? "Settings" : "Back to timer")
+        .help(page == .timer ? "Settings" : "Back to timer")
       }
       .padding(.horizontal, 16).frame(height: 44)
       Divider()
-      if settings { settingsView } else { timerView }
+      switch page {
+      case .timer: timerView
+      case .settings: settingsView
+      case .stats: statsView
+      }
       Divider()
       HStack {
-        Label(
-          "\(store.state.completedToday(at: store.now)) completed today",
-          systemImage: "checkmark.circle"
-        )
-        .font(.system(size: 11)).foregroundStyle(.secondary)
+        Button {
+          page = page == .stats ? .timer : .stats
+        } label: {
+          HStack(spacing: 5) {
+            Label(
+              "\(store.state.completedToday(at: store.now)) completed today",
+              systemImage: "checkmark.circle"
+            )
+            Image(systemName: page == .stats ? "chevron.down" : "chevron.right")
+              .font(.system(size: 8, weight: .semibold))
+          }
+          .font(.system(size: 11))
+          .foregroundStyle(page == .stats ? accent : .secondary)
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel(page == .stats ? "Back to timer" : "Open focus stats")
         Spacer()
         Button("Quit") {
           store.persist()
@@ -155,8 +182,6 @@ struct PanelView: View {
       Toggle(
         "Launch at login", isOn: Binding(get: { store.loginEnabled }, set: { store.setLogin($0) }))
       Divider()
-      focusStats
-      Divider()
       VStack(alignment: .leading, spacing: 6) {
         Text("Space to start or pause · ⌘R to reset")
         Text("Shortcuts work while this panel is open.")
@@ -168,31 +193,122 @@ struct PanelView: View {
     .onChange(of: store.preferences) { _, _ in store.updatePreferences() }
   }
 
-  private var focusStats: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      Text("FOCUS STATS")
-        .font(.system(size: 10, weight: .semibold))
+  private var statsView: some View {
+    let calendar = Calendar.current
+    let counts = store.state.completionCountsByDay(calendar: calendar)
+    let days = activityDates(calendar: calendar)
+
+    return VStack(alignment: .leading, spacing: 18) {
+      Text("FOCUS SUMMARY")
+        .sectionLabelStyle()
+      HStack(spacing: 0) {
+        statColumn("Lifetime", value: store.state.completedLifetime)
+        Divider().frame(height: 38)
+        statColumn("This week", value: store.state.completedThisWeek(at: store.now))
+        Divider().frame(height: 38)
+        statColumn("Current streak", value: store.state.currentStreak(at: store.now), suffix: "d")
+        Divider().frame(height: 38)
+        statColumn("Longest streak", value: store.state.longestStreak(), suffix: "d")
+      }
+
+      Divider()
+
+      VStack(alignment: .leading, spacing: 10) {
+        HStack {
+          Text("ACTIVITY")
+            .sectionLabelStyle()
+          Spacer()
+          Text(activityRange(days))
+            .font(.system(size: 10))
+            .foregroundStyle(.secondary)
+        }
+        HStack(spacing: 4) {
+          ForEach(0..<16, id: \.self) { week in
+            VStack(spacing: 4) {
+              ForEach(0..<7, id: \.self) { weekday in
+                let date = days[week * 7 + weekday]
+                activityCell(date: date, count: counts[date, default: 0], calendar: calendar)
+              }
+            }
+          }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Focus activity over the last 16 weeks")
+        HStack(spacing: 4) {
+          Spacer()
+          Text("Less")
+          ForEach(0..<4, id: \.self) { level in
+            RoundedRectangle(cornerRadius: 2.5, style: .continuous)
+              .fill(activityColor(for: level))
+              .frame(width: 10, height: 10)
+          }
+          Text("More")
+        }
+        .font(.system(size: 9))
         .foregroundStyle(.secondary)
+        .accessibilityHidden(true)
+      }
+
+      Divider()
+
       HStack(spacing: 0) {
         statColumn("Today", value: store.state.completedToday(at: store.now))
-        Divider().frame(height: 34)
-        statColumn("This week", value: store.state.completedThisWeek(at: store.now))
-        Divider().frame(height: 34)
+        Divider().frame(height: 38)
         statColumn("This month", value: store.state.completedThisMonth(at: store.now))
+        Divider().frame(height: 38)
+        statColumn("Active days", value: counts.count)
       }
     }
+    .padding(20)
   }
 
-  private func statColumn(_ label: String, value: Int) -> some View {
+  private func statColumn(_ label: String, value: Int, suffix: String = "") -> some View {
     VStack(spacing: 3) {
-      Text("\(value)")
-        .font(.system(size: 18, weight: .semibold, design: .rounded))
+      Text("\(value)\(suffix)")
+        .font(.system(size: 16, weight: .semibold, design: .rounded))
         .monospacedDigit()
-      Text(label).font(.system(size: 10)).foregroundStyle(.secondary)
+      Text(label)
+        .font(.system(size: 9))
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
     }
     .frame(maxWidth: .infinity)
     .accessibilityElement(children: .combine)
-    .accessibilityLabel("\(value) completed focus sessions \(label.lowercased())")
+    .accessibilityLabel("\(label), \(value)\(suffix)")
+  }
+
+  private func activityDates(calendar: Calendar) -> [Date] {
+    let today = calendar.startOfDay(for: store.now)
+    let currentWeek = calendar.dateInterval(of: .weekOfYear, for: today)?.start ?? today
+    let start = calendar.date(byAdding: .weekOfYear, value: -15, to: currentWeek) ?? currentWeek
+    return (0..<(16 * 7)).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
+  }
+
+  private func activityRange(_ days: [Date]) -> String {
+    guard let first = days.first, let last = days.last else { return "" }
+    let formatter = DateFormatter()
+    formatter.setLocalizedDateFormatFromTemplate("MMM")
+    return "\(formatter.string(from: first)) – \(formatter.string(from: min(last, store.now)))"
+  }
+
+  @ViewBuilder
+  private func activityCell(date: Date, count: Int, calendar: Calendar) -> some View {
+    let isFuture = date > calendar.startOfDay(for: store.now)
+    RoundedRectangle(cornerRadius: 3, style: .continuous)
+      .fill(isFuture ? Color.clear : activityColor(for: count))
+      .frame(width: 14, height: 14)
+      .help(isFuture ? "" : "\(date.formatted(date: .abbreviated, time: .omitted)): \(count) focus sessions")
+  }
+
+  private func activityColor(for count: Int) -> Color {
+    switch count {
+    case 0: Color.secondary.opacity(0.1)
+    case 1: accent.opacity(0.32)
+    case 2: accent.opacity(0.52)
+    case 3: accent.opacity(0.74)
+    default: accent
+    }
   }
 
   private func durationRow(_ title: String, value: Binding<Int>, range: ClosedRange<Int>)
@@ -205,5 +321,11 @@ struct PanelView: View {
         Text("\(value.wrappedValue) min").monospacedDigit().foregroundStyle(.secondary)
       }
     }
+  }
+}
+
+private extension View {
+  func sectionLabelStyle() -> some View {
+    font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
   }
 }
