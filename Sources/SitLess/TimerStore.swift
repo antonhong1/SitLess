@@ -49,7 +49,7 @@ final class TimerStore {
     if let finished = state.finishIfDue(at: now, preferences: preferences) {
       message =
         finished == .focus
-        ? "Nice work. Your break is ready." : "Break complete. Ready when you are."
+        ? "Nice work. Time for a break." : "Break complete. Back to focus."
       if preferences.sound { NSSound(named: "Glass")?.play() }
       reconcileFocusMode()
       persist()

@@ -22,7 +22,7 @@ struct TimerStateTests {
       expect(
         timer.finishIfDue(at: start.addingTimeInterval(1500), preferences: preferences) == .focus)
       expect(timer.phase == (index == 4 ? .longBreak : .shortBreak))
-      expect(!timer.isRunning)
+      expect(timer.isRunning)
       timer.skip(preferences: preferences)
     }
     expect(timer.completedInCycle == 0)
@@ -37,7 +37,7 @@ struct TimerStateTests {
     expect(timer.finishIfDue(at: wake, preferences: preferences) == nil)
     expect(timer.completedDates.count == 1)
     expect(timer.remaining == 300)
-    expect(!timer.isRunning)
+    expect(timer.isRunning)
   }
 
   func skipDoesNotCountAsCompletion() {
@@ -183,7 +183,25 @@ struct TimerStateTests {
       timer.finishIfDue(at: start.addingTimeInterval(900), preferences: preferences) == .longBreak)
     expect(timer.phase == .focus)
     expect(timer.remaining == 1500)
+    expect(timer.isRunning)
     expect(timer.completedDates.isEmpty)
+  }
+
+  func completedIntervalsContinueIntoTheNextPhase() {
+    var timer = TimerState()
+    timer.start(at: start)
+
+    let focusDeadline = start.addingTimeInterval(1500)
+    expect(timer.finishIfDue(at: focusDeadline, preferences: preferences) == .focus)
+    expect(timer.phase == .shortBreak)
+    expect(timer.isRunning)
+    expect(timer.secondsLeft(at: focusDeadline) == 300)
+
+    let breakDeadline = focusDeadline.addingTimeInterval(300)
+    expect(timer.finishIfDue(at: breakDeadline, preferences: preferences) == .shortBreak)
+    expect(timer.phase == .focus)
+    expect(timer.isRunning)
+    expect(timer.secondsLeft(at: breakDeadline) == 1500)
   }
 }
 
@@ -222,6 +240,8 @@ func expect(_ condition: @autoclosure () -> Bool, file: StaticString = #file, li
     print("PASS noCompletionBeforeDeadlineAndStartIsIdempotent")
     tests.completedBreakReturnsToFocusWithoutCredit()
     print("PASS completedBreakReturnsToFocusWithoutCredit")
-    print("14 timer regression checks passed")
+    tests.completedIntervalsContinueIntoTheNextPhase()
+    print("PASS completedIntervalsContinueIntoTheNextPhase")
+    print("15 timer regression checks passed")
   }
 }

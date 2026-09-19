@@ -108,6 +108,7 @@ public struct TimerState: Codable, Sendable {
       phase = .focus
     }
     reset(preferences: preferences)
+    start(at: now)
     return finished
   }
 
